@@ -1,0 +1,30 @@
+@startuml architecture
+!pragma layout smetana
+title Gesamtarchitektur PBS-Blueprint (ITA)
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam ArrowColor #444444
+skinparam DefaultFontName "Helvetica"
+
+cloud "MFI-Netz (server-VLAN)" as mfi {
+    rectangle "PVE-Cluster\n(6 Hypervisor-Knoten)" as pve
+    component "PBS\nita-fs04" as pbs
+    database "Datastore\n/mnt/datastore/backup\n(ext4 auf HW-RAID5)" as datastore
+    component "Prometheus\n(Monitoring)" as prom
+    component "MFI-LDAP\n(AD: ITA-SysAdmins)" as ldap
+    component "Bitwarden\n(Secrets)" as bw
+}
+
+cloud "Bestehende Sicherung\n(parallel, ausserhalb dieses Projekts)" as legacy {
+    component "Backup-Server\n+ TSM / Tape" as tsm
+}
+
+pve -down-> pbs : Backups\n(API-Token, TLS)
+pbs -down-> datastore : Snapshots\n(dedup, incremental)
+pbs -up-> ldap : LDAPS:636\n(Auth via\nITA-SysAdmins)
+pbs -right-> prom : Metriken\n:9100/metrics\n(pbs-exporter)
+pbs ..> bw : root-PW,\nAPI-Token
+pbs -right-> tsm : Host-Backup\n(rsync + TSM,\nbleibt aktiv)
+
+@enduml

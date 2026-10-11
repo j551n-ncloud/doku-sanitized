@@ -1,0 +1,143 @@
+% !TEX root = ../Projektdokumentation.tex
+\section{Entwurfsphase}
+\label{sec:Entwurfsphase}
+
+\subsection{Zielplattform}
+\label{sec:Zielplattform}
+Zielsystem ist der \acl{PBS} in der Major-Version~4.
+Der \ac{PBS} ist eine Debian-basierte, von Proxmox bereitgestellte
+Backup-Lösung mit eigener Web-Oberfläche und Kommandozeilen-Werkzeugen
+(\texttt{proxmox-backup-manager}, \texttt{proxmox-backup-client}).
+Er ist nativ in \ac{PVE} integriert und kann dort direkt als Storage
+eingebunden werden.
+
+Anzubindendes System ist der bestehende \ac{PVE}-Cluster mit sechs
+Knoten (3$\times$ IBM/Lenovo, 3$\times$ Dell VxRail), auf dem ca.~60
+\acp{VM} sowie mehrere \acp{LXC} laufen.
+
+
+\subsection{Hardware und Storage-Architektur}
+\label{sec:HardwareStorage}
+Für den \ac{PBS} wird vorhandene Hardware nachgenutzt: ein
+\textbf{IBM System x3755 M3} mit 32 Kernen (AMD Opteron~6220,
+4 Sockel), 32\,GB \ac{RAM} und 6$\times$4\,TB HDDs
+(Modell \texttt{ST4000NM033}).
+Die Disks werden über einen Hardware-\ac{RAID}-Controller wie folgt
+organisiert:
+\begin{itemize}
+    \item \textbf{System:} \ac{RAID}\,1 für das Debian-/\ac{PBS}-
+          Betriebssystem (separate Disks).
+    \item \textbf{Datastore:} \ac{RAID}\,5 über 6$\times$4\,TB HDDs,
+          ergibt rund 20\,TB nutzbare Kapazität für den
+          \ac{PBS}-Datastore.
+\end{itemize}
+Diese Kapazität ist angesichts der aktuell ca.\ 6\,TB belegten
+Primärdaten und der durch \ac{PBS} eingesetzten Deduplizierung
+ausreichend dimensioniert.
+
+Als Dateisystem für den Datastore wird \texttt{ext4} auf dem
+Hardware-\ac{RAID}\,5 eingesetzt; der vorhandene
+Hardware-\ac{RAID}-Controller gibt diese Strategie vor. Die
+Datenintegrität wird durch die in \ac{PBS} integrierten Verify-Jobs
+sichergestellt, die alle gespeicherten Chunks regelmäßig gegen ihre
+Prüfsummen vergleichen.
+
+
+\subsection{Netzwerkarchitektur}
+\label{sec:Netzwerk}
+Die \ac{ITA} verwendet vier separate \acp{VLAN}:
+\begin{itemize}
+    \item \emph{server}-\ac{VLAN} für regulären Management- und
+          Anwendungs-Traffic,
+    \item \emph{cluster}-\ac{VLAN} für die Dienste des
+          \ac{LSF}-Compute-Clusters,
+    \item \emph{external}-\ac{VLAN} für nach außen exponierte Dienste,
+    \item dediziertes \emph{ceph}-\ac{VLAN} für den Storage-Traffic.
+\end{itemize}
+Der \ac{PBS} wird an das \emph{server}-\ac{VLAN} angebunden, um vom
+\ac{PVE}-Cluster aus erreichbar zu sein.
+Da der vorhandene Server nur Onboard-1\,GbE-Ports mitbringt, wird
+zusätzlich eine \ac{SFP}-Netzwerkkarte mit 2$\times$10\,GbE eingebaut.
+Die beiden Ports werden per \ac{LACP} zu einem logischen Interface
+gebündelt, um sowohl die Bandbreite zu erhöhen als auch eine
+Ausfallsicherheit auf Link-Ebene zu erreichen.
+Da die Backups über die regulären Hypervisor-Schnittstellen erfolgen,
+ist keine direkte Anbindung an das \emph{ceph}-\ac{VLAN} erforderlich;
+dadurch bleibt der Storage-Traffic von Primärdaten und Backups
+sauber getrennt.
+Eine vollständige Übersicht der Cluster-Topologie -- Hypervisor-
+Knoten je Etage, Switch-Paare, \ac{LACP}-Bonds für Ceph- und
+\ac{PVE}/Management-Netz sowie die Anbindung von
+\texttt{ita-fs04} -- befindet sich in
+\Anhang{app:ClusterTopologie}.
+
+
+\subsection{Backup-Konzept}
+\label{sec:Backupkonzept}
+
+\subsubsection*{Klassifizierung der virtuellen Maschinen}
+Die \acp{VM} und Container werden in zwei Klassen eingeteilt:
+\begin{itemize}
+    \item \textbf{Kritisch (\ac{SOP}-pflichtig):} produktive
+          Forschungs- und Infrastrukturdienste, deren Wiederherstellung
+          gemäß \acl{SOP} dokumentiert sein muss.
+    \item \textbf{Test:} temporäre \acp{VM} ohne produktive Bedeutung;
+          Sicherung mit deutlich geringerer Frequenz und Aufbewahrung.
+\end{itemize}
+
+\subsubsection*{Frequenz und Retention}
+Sowohl für die kritischen Systeme als auch für die Test-\acp{VM}
+werden \textbf{zwei Backups pro Tag} durchgeführt; aufgehoben
+werden jeweils nur die letzten drei Sicherungen.
+Daraus ergibt sich in \ac{PBS}-Notation eine Prune-Regel mit
+\texttt{keep-last=3}.
+
+\subsubsection*{Restore-Strategie}
+Die Wiederherstellung erfolgt primär über die Web-Oberfläche des
+\ac{PVE}: einzelne Dateien können per \emph{File-Restore} extrahiert,
+ganze \acp{VM} oder Container direkt aus dem \ac{PBS}-Datastore
+zurückgespielt werden. Zusätzlich bleibt die bestehende
+\ac{TSM}-/Tape-Sicherung als zweite, langfristige Sicherungsebene
+für den \ac{PBS}-Host selbst erhalten.
+
+\subsubsection*{Bandbreite und Verifikation}
+Die Übertragung zwischen \ac{PVE}-Cluster und \ac{PBS} erfolgt über
+das mit \ac{LACP} gebündelte 2$\times$10\,GbE-Interface des \ac{PBS}.
+Ein zusätzliches Bandbreitenlimit auf Applikationsebene ist nicht
+vorgesehen.
+
+Die Integrität des Datastores wird durch wöchentliche Verify-Jobs
+sichergestellt, die alle gespeicherten Chunks gegen die hinterlegten
+Prüfsummen vergleichen.
+
+Eine clientseitige Verschlüsselung der Backups ist nicht Teil dieses
+Projekts, da der \ac{PBS} innerhalb des \ac{MFI}-Netzes betrieben
+wird und der Datastore nur intern erreichbar ist.
+
+
+\subsection{Authentifizierung und Berechtigungen}
+\label{sec:AuthZ}
+Für den \ac{PBS} wird ein zweistufiges Authentifizierungskonzept
+verwendet:
+\begin{itemize}
+    \item Ein lokaler \texttt{root}-Account für die Initial-
+          konfiguration, Notfallzugriff und automatisierte interne
+          Aufgaben.
+    \item Anbindung an das \ac{MFI}-\ac{LDAP} für reguläre Admin-
+          User, die ihre persönlichen Konten verwenden.
+\end{itemize}
+Die Anbindung des \ac{PVE}-Clusters an den \ac{PBS} erfolgt über das
+lokale \texttt{root}-Passwort des \ac{PBS} in Kombination mit dem
+TLS-Fingerprint des \ac{PBS}-Zertifikats; dadurch ist gewährleistet,
+dass sich das \ac{PVE} ausschließlich gegen den richtigen
+\ac{PBS}-Host authentifiziert.
+
+
+\subsection{Maßnahmen zur Qualitätssicherung}
+\label{sec:QS}
+Zur Absicherung der Lösung werden nach der Einrichtung jeder neue
+Backup-Job manuell ausgelöst, Restore-Tests auf einem Test-Hypervisor
+sowohl für einzelne Dateien als auch für ganze \acp{VM} bzw.\
+Container durchgeführt, regelmäßige Verify-Jobs im \ac{PBS} angelegt
+und die Anbindung an Prometheus sowie der E-Mail-Versand auf
+Funktion geprüft.

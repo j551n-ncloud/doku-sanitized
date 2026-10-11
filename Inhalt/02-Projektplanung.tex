@@ -1,0 +1,78 @@
+% !TEX root = ../Projektdokumentation.tex
+\section{Projektplanung}
+\label{sec:Projektplanung}
+
+
+\subsection{Projektphasen}
+\label{sec:Projektphasen}
+
+Für die Umsetzung des Projekts wurden gemäß Projektantrag insgesamt 40
+Stunden angesetzt, wovon maximal acht Stunden auf die Dokumentation
+entfallen.
+Die einzelnen Arbeitspakete umfassen jeweils nicht mehr als sechs
+Stunden.
+Der Durchführungszeitraum erstreckt sich von der Genehmigung durch den
+IHK-Prüfungsausschuss bis zum 30.04.2026.
+
+Aus der Tabelle \ref{tab:Zeitplanung} kann entnommen werden, in welche
+Hauptphasen das Projekt gegliedert wurde.
+Eine detailliertere Zeitplanung mit allen einzelnen Arbeitspaketen
+findet sich im \Anhang{app:Zeitplanung}.
+\tabelle{Zeitplanung (geplant)}{tab:Zeitplanung}{ZeitplanungKurz}
+
+% TODO: nach Abschluss des Projekts ggfs. Abweichungen zwischen geplanter
+% und tatsächlicher Zeit hier kurz erläutern (Details im Fazit).
+
+
+\subsection{Ressourcenplanung}
+\label{sec:Ressourcenplanung}
+
+Für die Durchführung des Projekts werden folgende Ressourcen verwendet.
+
+\subsubsection{Hardware}
+Für den \ac{PBS} steht ein dedizierter Server mit mindestens 32\,GB
+\ac{RAM} und ausreichend Speicherkapazität zur Verfügung.
+Die Storage-Kapazität wird in der Analysephase auf Basis der
+bestehenden \ac{VM}- und Container-Landschaft dimensioniert.
+% TODO: konkrete Hardware (Modell, CPU, RAM, Disks) nach Auswahl ergänzen.
+
+Für die Administration und Entwicklung wird der reguläre
+Arbeitslaptop des Prüflings genutzt.
+
+\subsubsection{Software}
+Auf dem Backup-Server kommt der \ac{PBS} (aktuelle Version) auf Basis von
+Debian Linux zum Einsatz.
+Für den Datastore wird \texttt{ext4} auf dem Hardware-\ac{RAID}\,5
+verwendet.
+Die Anbindung an die bestehende \ac{PVE}-Umgebung erfolgt über die
+\ac{PBS}-eigenen Mechanismen (Storage-Plugin, Authentifizierung über
+das lokale \texttt{root}-Passwort des \ac{PBS} und TLS-Fingerprint).
+% TODO: ggfs. konkrete Versionen ergänzen.
+
+\subsubsection{Netzwerk}
+Für die Anbindung des \ac{PBS} ist ein dediziertes Backup-\ac{VLAN}
+vorgesehen, das in Abstimmung mit dem Netzwerkteam eingerichtet wird.
+Erforderliche Firewall-Freischaltungen werden im Rahmen der
+Beschaffungs- und Vorbereitungsphase abgestimmt.
+
+\subsubsection{Personal}
+Folgende Personen unterstützen das Projekt:
+\begin{itemize}
+    \item Erika Musterfrau (\ac{ITA}) als fachlicher Betreuer und Auftraggeber
+    \item das \ac{ITA}-Administrationsteam als Übergabeempfänger und Sparringspartner für die Anbindung an die \ac{PVE}-Umgebung
+    \item das Netzwerkteam des \ac{MFI} für die Einrichtung des Backup-\ac{VLAN}
+\end{itemize}
+Die Umsetzung selbst erfolgt durch den Prüfling.
+
+\subsection{Entwicklungsprozess}
+\label{sec:Entwicklungsprozess}
+
+Das Projekt wird in einem iterativen Vorgehen umgesetzt: Nach jeder
+abgeschlossenen Phase erfolgt eine kurze Abstimmung mit dem Betreuer,
+um das weitere Vorgehen festzulegen und Anpassungen an der Planung
+vorzunehmen.
+Da es sich um ein Infrastrukturprojekt handelt, ist eine klare
+Trennung zwischen Analyse, Konzeption, Umsetzung und Validierung
+sinnvoll. Innerhalb der Umsetzung wird jedoch testgetrieben
+gearbeitet, indem einzelne Konfigurationsschritte direkt durch
+Backup- und Restore-Tests verifiziert werden.
